@@ -1,15 +1,10 @@
-from selenium import webdriver
-from selenium.webdriver.common.by import By
-from selenium.webdriver.common.keys import Keys
-from selenium.webdriver.support.ui import WebDriverWait
-from selenium.webdriver.support import expected_conditions as EC
+import requests
 import numpy as np
 
 # Necessary input variables
-track = "eskilstuna"
 race = 9
 date = "2022-07-20"
-max_wait = 2
+track_code = 14
 
 def win_probability(
     odds_list: list,
@@ -33,45 +28,18 @@ def win_probability(
     win_prob = unadj_prob * (1 - track_take)
     return win_prob
 
-# Initiates the selenium session
-path = "/Applications/chromedriver"
-driver = webdriver.Chrome(path)
+url = f"https://atg.se/services/racinginfo/v1/api/games/komb_{date}_{track_code}_{race}"
 
-driver.get(f"https://www.atg.se/spel/{date}/komb/{track}/lopp{race}")
+response = requests.get(url)
+response_json = response.json()
 
-# Preparations
+
 odds_lists = []
-horses_left = True
-i = 1
-
-# Scrapes the exacta matrix -> list of lists for each row in the online web matrix
-while horses_left == True:
-    # While there are horses left in the field not yet scraped, the try block will execute without errors
-    # As soon as there is a request for horse n+1 with a field of n horses the try block returns an exception, forcing the while loop to close
-    try:
-        odds_list = []
-        row = WebDriverWait(driver, max_wait).until(EC.presence_of_element_located(
-            (By.XPATH, f"//*[@id='main']/div[3]/div[2]/div/div/div/div/div/div/div[7]/table/tbody/tr[{i}]")))
-        odds_row = WebDriverWait(row, max_wait).until(EC.presence_of_all_elements_located(
-            (By.CLASS_NAME, "css-7g5myv-combomatrix-styles--padding")))
-        for odds in odds_row:
-            # Loops through all combinations with horse i as the winner. If the "second" horse is the horse itself/is scratched
-            # it appends a zero to the odds_list, else it appends the exacta odds
-            if odds_row.index(odds) + 1 == i:
-                odds_list.append(float(0))
-            else:
-                try:
-                    odds_list.append(
-                        float(odds.text.replace(",", ".").replace(" ", "")))
-                except:
-                    odds_list.append(float(0))
-        odds_lists.append(odds_list)
-        i += 1
-    except:
-        horses_left = False
-
-# Exits chromedriver
-driver.quit()
+for horseodds in response_json['pools']['komb']['comboOdds']:
+    odds_list = []
+    for odds in horseodds:
+        odds_list.append(odds / 100)
+    odds_lists.append(odds_list)
 
 # Prepares the probability matrix
 prob_lists = []
